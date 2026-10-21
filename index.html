@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Controle de Estoque</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap">
+<style>
+:root{--bg:#f3f6f8;--surf:#fff;--ink:#14212b;--mute:#5d6e7b;--line:#d5dee4;--brand:#0e7c93;--hdr:#bfeaf2;--red:#ffb3ae;--redt:#7a0c05;--yel:#fff0a3;--yelt:#5c4a00;--ora:#fbd3a1;--cy:#c9f0f7;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10181e;--surf:#18232b;--ink:#e6eef3;--mute:#93a5b2;--line:#2c3b46;--brand:#4cc3da;--hdr:#12404c;--red:#6b1f1b;--redt:#ffd5d1;--yel:#5a4d0f;--yelt:#fff2b0;--ora:#6b4620;--cy:#13454f}}
+:root[data-theme="dark"]{--bg:#10181e;--surf:#18232b;--ink:#e6eef3;--mute:#93a5b2;--line:#2c3b46;--brand:#4cc3da;--hdr:#12404c;--red:#6b1f1b;--redt:#ffd5d1;--yel:#5a4d0f;--yelt:#fff2b0;--ora:#6b4620;--cy:#13454f}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 Archivo,system-ui,Segoe UI,sans-serif}
+header{background:var(--hdr);padding:22px 20px 18px;border-bottom:3px solid var(--brand)}
+.wrap{max-width:1040px;margin:0 auto}
+h1{margin:0;font-size:26px;font-weight:800}
+.bar{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}
+input[type=search]{flex:1;min-width:180px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surf);color:var(--ink);font:inherit}
+button{font:inherit;cursor:pointer;border:1px solid var(--brand);background:var(--brand);color:#fff;border-radius:8px;padding:8px 14px;font-weight:600}
+button.ghost{background:transparent;color:var(--brand)}
+button:focus-visible,td:focus-visible,input:focus-visible{outline:3px solid var(--brand);outline-offset:1px}
+main{padding:20px}
+section{background:var(--surf);border:1px solid var(--line);border-radius:10px;margin-bottom:22px;overflow:hidden}
+.sh{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;gap:10px;flex-wrap:wrap}
+.sh h2{margin:0;font-size:18px}
+.sum{color:var(--mute);font-size:14px}
+.sc{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:720px}
+th{text-align:left;font-weight:800;padding:9px 12px;background:var(--hdr);border-top:1px solid var(--line);cursor:pointer;white-space:nowrap}
+td{border-top:1px solid var(--line);padding:8px 12px}
+td[contenteditable]:hover{background:rgba(14,124,147,.08)}
+td.q{text-align:center;font-weight:800;width:110px}
+td.q.z{background:var(--red);color:var(--redt)}
+td.q.l{background:var(--yel);color:var(--yelt)}
+td.p:not(:empty){background:var(--cy)}
+td.hl{background:var(--ora)}
+td.x{width:44px;text-align:center;padding:0}
+td.x button{background:none;border:0;color:var(--mute);padding:6px 10px;font-size:18px}
+.ft{display:flex;gap:10px;align-items:center;padding:10px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
+.date{font-weight:800;font-size:17px;background:var(--yel);color:var(--yelt);padding:4px 12px;border-radius:6px}
+.leg{font-size:13px;color:var(--mute);margin:0 0 14px}
+@media (max-width:600px){h1{font-size:21px}main{padding:12px}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+<h1>Controle de Estoque</h1>
+<div class="bar">
+<input type="search" id="q" placeholder="Buscar material, medida ou finalidade" aria-label="Buscar">
+<button class="ghost" id="imp">Importar CSV/Excel</button><input type="file" id="file" accept=".csv,.xlsx,.xls" hidden>
+<button class="ghost" id="csv">Exportar CSV</button>
+<button class="ghost" id="reset">Restaurar original</button>
+</div></div></header>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<main><div class="wrap">
+<p class="leg">Clique em qualquer célula para editar. Quantidade vermelha significa que está acabando: 3 ou menos nas bobinas e 2 ou menos nas tintas. Nas lâminas, 0 fica vermelha e 1 a 2 fica amarela. Clique no título da coluna para ordenar.</p>
+<div id="app"></div>
+</div></main>
+<script>
+const COLS=["Finalidade","Medida","Material","Quantidade","Pedido"];
+const R=(a,b,c,d,e,h)=>({f:a,m:b,t:c,q:d,p:e||"",h:!!h});
+const ORIG=[
+{title:"Bobinas",date:"15/09",rows:[
+R("Impressão","1,4","IMPRESSÃO - branco brilho 1,40",15),
+R("Laminação","1,26","Laminação - Fosco 1,26",20),
+R("Laminação","1,4","Imprimax - transparente brilho 1,40",0,"19/10 - 01 UN"),
+R("Crom, Hol, Gold - Lam","1,22","Imprimax - transparente brilho 1,22",0),
+R("Laminação","1,26","LAMINAÇÃO - Brilho transparente 1,26",1,"19/10 - 05 UN"),
+R("Impressão","1,27","Imprimax - Gold 1,27",0,"19/10 - 02 UN"),
+R("Impressão","1,27","Imprimax - Cromado/Prata 1,27",1,"19/10 - 01 UN"),
+R("Impressão","1,27","RD - Holográfico - 1,27",3)]},
+{title:"Tintas",date:"12/02",rows:[
+R("Tinta","","Vermelho",0),
+R("Tinta","360","Amarelo - 360",2,"",1),
+R("Tinta","","Light Magenta",0),
+R("Tinta","360","Preto - 360",0,"",1),
+R("Tinta","360","Magenta - 360",1,"",1),
+R("Tinta","360","Cyan - 360",0,"",1),
+R("Tinta","","Laranja",0),
+R("Tinta","","Light cyan",0),
+R("Tinta","","Branca",0),
+R("Tinta","","Light Black",0),
+R("","","KIT DE LIMPEZA COM FILTRO",1)]},
+{title:"Lâminas e suportes",date:"25/06",rows:[
+R("","","Lâminas (superior) - GRAPHTEC",0),
+R("","","Lâminas (inferior) - GRAPHTEC",15),
+R("","","Suporte",2)]}];
+ORIG[1].title="Tintas - S80600L";
+ORIG.splice(2,0,{title:"Tintas - S60600L",date:"",rows:ORIG[1].rows.filter(r=>/^(Amarelo|Preto|Magenta|Cyan)\b/.test(r.t)).map(r=>({...r,q:""}))});
+ORIG[2].rows.push(R("","","KIT DE LIMPEZA COM FILTRO",""));
+const SEED=[{"date": "21/10", "rows": [{"f": "Impressão", "h": false, "m": "1,4", "p": "", "q": "13", "t": "IMPRESSÃO - branco brilho 1,40"}, {"f": "Laminação", "h": false, "m": "1,26", "p": "", "q": "19", "t": "Laminação - Fosco 1,26"}, {"f": "Laminação", "h": false, "m": "1,4", "p": "19/10 - 01 UN", "q": 0, "t": "Imprimax - transparente brilho 1,40"}, {"f": "Crom, Hol, Gold - Lam", "h": false, "m": "1,22", "p": "", "q": 0, "t": "Imprimax - transparente brilho 1,22"}, {"f": "Laminação", "h": false, "m": "1,26", "p": "19/10 - 05 UN", "q": 1, "t": "LAMINAÇÃO - Brilho transparente 1,26"}, {"f": "Impressão", "h": false, "m": "1,27", "p": "19/10 - 02 UN", "q": 0, "t": "Imprimax - Gold 1,27"}, {"f": "Impressão", "h": false, "m": "1,27", "p": "19/10 - 01 UN", "q": 1, "t": "Imprimax - Cromado/Prata 1,27"}, {"f": "Impressão", "h": false, "m": "1,27", "p": "", "q": "2", "t": "Holográfico - 1,27"}], "title": "Bobinas"}, {"date": "12/02", "ord": 1, "rows": [{"f": "Tinta", "h": false, "m": "", "p": "", "q": 0, "t": "Cyan"}, {"f": "Tinta", "h": false, "m": "", "p": "", "q": 1, "t": "Magenta"}, {"f": "Tinta", "h": false, "m": "", "p": "", "q": 2, "t": "Amarelo"}, {"f": "Tinta", "h": false, "m": "", "p": "", "q": 0, "t": "Preto"}, {"f": "Tinta", "h": false, "m": "", "p": "", "q": 0, "t": "Vermelho"}, {"f": "Tinta", "h": false, "m": "", "p": "", "q": 0, "t": "Light Magenta"}, {"f": "Tinta", "h": false, "m": "", "p": "", "q": 0, "t": "Laranja"}, {"f": "Tinta", "h": false, "m": "", "p": "", "q": 0, "t": "Light cyan"}, {"f": "Tinta", "h": false, "m": "", "p": "", "q": "1", "t": "Branca"}, {"f": "Tinta", "h": false, "m": "", "p": "", "q": "1", "t": "Light Black"}, {"f": "", "h": false, "m": "", "p": "", "q": 1, "t": "KIT DE LIMPEZA COM FILTRO"}], "title": "Tintas - S80600L"}, {"date": "20/10", "fix": 1, "rows": [{"f": "Tinta", "h": false, "m": "", "p": "", "q": 0, "t": "Amarelo"}, {"f": "Tinta", "h": false, "m": "", "p": "", "q": 0, "t": "Preto"}, {"f": "Tinta", "h": false, "m": "", "p": "", "q": 0, "t": "Magenta"}, {"f": "Tinta", "h": false, "m": "", "p": "", "q": 0, "t": "Cyan"}, {"f": "", "h": false, "m": "", "p": "", "q": 0, "t": "KIT DE LIMPEZA COM FILTRO"}], "title": "Tintas - S60600L"}, {"date": "25/06", "rows": [{"f": "", "h": false, "m": "", "p": "", "q": 0, "t": "Lâminas (superior) - GRAPHTEC"}, {"f": "", "h": false, "m": "", "p": "", "q": 15, "t": "Lâminas (inferior) - GRAPHTEC"}, {"f": "", "h": false, "m": "", "p": "", "q": 2, "t": "Suporte"}], "title": "Lâminas e suportes"}];
+const KEY="estoque-v1";
+let data;
+try{data=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!data)data=JSON.parse(JSON.stringify(SEED));
+data.forEach(s=>{if(s.title=="Bobinas e filmes")s.title="Bobinas"});
+(function(){const i=data.findIndex(s=>s.title=="Tintas");if(i<0)return;data[i].title="Tintas - S80600L";
+if(!data.some(s=>/S60600L/.test(s.title)))data.splice(i+1,0,{title:"Tintas - S60600L",date:"",rows:data[i].rows.filter(r=>/^(Amarelo|Preto|Magenta|Cyan)\b/.test(r.t)).map(r=>({...r,q:""}))})})();
+{const s6=data.find(s=>/S60600L/.test(s.title));if(s6&&s6.rows.some(r=>r.t=="Vermelho"&&r.q===""))s6.rows=s6.rows.filter(r=>/^(Amarelo|Preto|Magenta|Cyan)\b/.test(r.t))}
+{const s6=data.find(s=>/S60600L/.test(s.title));let done=null;try{done=localStorage.getItem("estoque-kit60")}catch(e){}
+if(s6&&!done){if(!s6.rows.some(r=>/KIT DE LIMPEZA/i.test(r.t)))s6.rows.push(R("","","KIT DE LIMPEZA COM FILTRO",""));try{localStorage.setItem("estoque-kit60","1")}catch(e){}}}
+function zeroInk(){data.forEach(s=>{if(/^Tintas/i.test(s.title))s.rows.forEach(r=>{r.t=String(r.t).replace(/\s*-\s*360\b/,"");if(String(r.m).trim()==="360")r.m="";r.h=false;if(String(r.q).trim()==="")r.q=0})})}
+zeroInk();
+function fixDate(a){let ch=false;a.forEach(s=>{if(/S60600L/.test(s.title)&&!s.fix){s.fix=1;if(!String(s.date).trim())s.date="20/10";ch=true}});return ch}
+function fixOrder(a){let ch=false;a.forEach(s=>{if(/S80600L/.test(s.title)&&!s.ord){s.ord=1;const rk=r=>{const n=String(r.t).toLowerCase().trim();return n=="cyan"?0:n=="magenta"?1:n=="amarelo"?2:n=="preto"?3:n.startsWith("kit")?5:4};s.rows.sort((x,y)=>rk(x)-rk(y));ch=true}});return ch}
+if(fixDate(data)|fixOrder(data)){try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}}
+data.forEach(s=>s.date=String(s.date).replace(/\s*-?\s*LÉO/i,""));
+const sort={};
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}}
+function inkStyle(n){n=String(n).trim().toLowerCase();const m=[["light magenta","#f06fc3"],["light cyan","#4fb8e0"],["light black","#8a8f94"],["vermelh","#d62020"],["amarel","#d4a800"],["magenta","#d0149b"],["cyan","#00a6c8"],["laranja","#f07a00"],["preto","var(--ink)"],["branc","#fff;text-shadow:0 0 2px #000,0 0 1px #000"]];
+const f=m.find(x=>n.startsWith(x[0]));return f?"color:"+f[1]+";font-weight:800":""}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")}
+function cls(q,si){const n=parseFloat(q);if(isNaN(n))return"";const t=(data[si]&&data[si].title)||"";const lim=/^Bobinas/i.test(t)?3:/^Tintas/i.test(t)?2:0;return n<=lim?"z":n<=2?"l":""}
+const keys=["f","m","t","q","p"];
+function render(){
+const term=document.getElementById("q").value.toLowerCase();
+document.getElementById("app").innerHTML=data.map((s,si)=>{
+const ink=/^Tintas/i.test(s.title);const total=s.rows.reduce((a,r)=>a+(parseFloat(r.q)||0),0);
+const low=s.rows.filter(r=>cls(r.q,si)).length;
+const rows=s.rows.map((r,ri)=>({r,ri})).filter(({r})=>!term||[r.f,r.m,r.t,r.p].join(" ").toLowerCase().includes(term));
+return `<section><div class="sh"><h2 contenteditable data-s="${si}" data-k="title">${esc(s.title)}</h2><span class="sum">Total: ${total} · ${low} em falta ou baixo</span></div>
+<div class="sc"><table><thead><tr>${COLS.map((c,ci)=>ink&&ci==1?"":`<th data-sort="${si}:${ci}">${ink&&ci==2?"Cor":c}</th>`).join("")}<th></th></tr></thead><tbody>
+${rows.map(({r,ri})=>`<tr>${keys.map(k=>ink&&k=="m"?"":`<td contenteditable data-s="${si}" data-r="${ri}" data-k="${k}" class="${k=="q"?"q "+cls(r.q,si):k=="p"?"p":""}" style="${k=="t"&&ink?inkStyle(r.t):""}">${esc(r[k])}</td>`).join("")}<td class="x"><button data-del="${si}:${ri}" title="Remover linha" aria-label="Remover linha">×</button></td></tr>`).join("")}
+</tbody></table></div>
+<div class="ft"><button class="ghost" data-add="${si}">+ Adicionar linha</button><span class="date">Atualizado em <span contenteditable data-s="${si}" data-k="date">${esc(s.date)}</span></span></div></section>`}).join("");
+}
+const app=document.getElementById("app");
+app.addEventListener("input",e=>{
+const t=e.target,s=data[t.dataset.s];if(!s)return;
+if(t.dataset.r!==undefined){s.rows[t.dataset.r][t.dataset.k]=t.textContent;
+if(t.dataset.k=="t"&&/^Tintas/i.test(s.title))t.setAttribute("style",inkStyle(t.textContent));
+if(t.dataset.k=="q"){t.className="q "+cls(t.textContent,+t.dataset.s);const td=new Date(),dd=String(td.getDate()).padStart(2,"0")+"/"+String(td.getMonth()+1).padStart(2,"0");s.date=dd;const ds=app.querySelector('[data-k="date"][data-s="'+t.dataset.s+'"]');if(ds)ds.textContent=dd}}
+else s[t.dataset.k]=t.textContent;
+save()});
+app.addEventListener("focusout",e=>{if(e.target.dataset.k=="q"){zeroInk();save();render()}});
+app.addEventListener("keydown",e=>{if(e.key=="Enter"&&e.target.isContentEditable){e.preventDefault();e.target.blur()}});
+app.addEventListener("click",e=>{
+const b=e.target.closest("[data-del],[data-add],[data-sort]");if(!b)return;
+if(b.dataset.add!==undefined){data[b.dataset.add].rows.push(R("","","Novo item",0))}
+else if(b.dataset.del){const[s,r]=b.dataset.del.split(":");data[s].rows.splice(r,1)}
+else{const[s,c]=b.dataset.sort.split(":");const k=keys[c],d=sort[s+k]=!sort[s+k];
+data[s].rows.sort((a,b)=>{const x=a[k],y=b[k],n=parseFloat(x)-parseFloat(y);
+const v=(k=="q"&&!isNaN(n))?n:String(x).localeCompare(String(y),"pt-BR",{numeric:true});return d?v:-v})}
+save();render()});
+document.getElementById("q").addEventListener("input",render);
+function parseCSV(t){const d=(t.split("\n")[0].match(/;/g)||[]).length?";":",";const rows=[];let row=[],c="",q=false;
+for(let i=0;i<t.length;i++){const ch=t[i];
+if(q){if(ch=='"'){if(t[i+1]=='"'){c+='"';i++}else q=false}else c+=ch}
+else if(ch=='"')q=true;else if(ch==d){row.push(c);c=""}else if(ch=="\n"||ch=="\r"){if(ch=="\r"&&t[i+1]=="\n")i++;row.push(c);rows.push(row);row=[];c=""}else c+=ch}
+if(c||row.length){row.push(c);rows.push(row)}return rows}
+function mk(f,m,t,q,p){const s=x=>String(x==null?"":x).trim();const n=s(q).replace(",",".");
+return R(s(f),typeof m==="number"?String(m).replace(".",","):s(m),s(t),n!==""&&!isNaN(n)?Number(n):s(q),s(p),/\b360\b/.test(s(t)))}
+function fmtDate(v){if(typeof v==="number"&&v>30000){const d=new Date(Math.round((v-25569)*864e5));return String(d.getUTCDate()).padStart(2,"0")+"/"+String(d.getUTCMonth()+1).padStart(2,"0")}return String(v||"").trim()}
+document.getElementById("imp").onclick=()=>document.getElementById("file").click();
+document.getElementById("file").onchange=async e=>{
+const f=e.target.files[0];if(!f)return;e.target.value="";
+try{const out=[];
+if(/\.csv$/i.test(f.name)){
+const rows=parseCSV((await f.text()).replace(/^\uFEFF/,""));
+rows.slice(1).forEach(c=>{if(c.every(x=>!String(x).trim()))return;
+const t=c[0]||"Importado";let s=out.find(o=>o.title==t);
+if(!s){const old=data.find(o=>o.title==t);s={title:t,date:old?old.date:"",rows:[]};out.push(s)}
+s.rows.push(mk(c[1],c[2],c[3],c[4],c[5]))})}
+else{const wb=XLSX.read(await f.arrayBuffer(),{type:"array"});
+const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:""});
+let cur=null;
+for(let i=0;i<rows.length;i++){const r=rows[i],a=String(r[0]).trim(),nx=rows[i+1]||[];
+if(String(nx[0]).trim()=="Finalidade"&&a&&!r[1]&&!r[2]){cur={title:a,date:"",rows:[]};out.push(cur);i++;continue}
+if(!cur)continue;
+if(String(r[2]).trim()=="Total"){cur.date=fmtDate(r[5]);cur=null;continue}
+if(r.slice(0,5).every(x=>x===""))continue;
+cur.rows.push(mk(r[0],r[1],r[2],r[3],r[4]))}}
+if(!out.length||!out.some(s=>s.rows.length)){alert("Não encontrei dados nesse arquivo. Use o CSV exportado por esta página ou o arquivo estoque.xlsx.");return}
+if(!confirm("Importar vai substituir os dados atuais da página. Continuar?"))return;
+data=out;zeroInk();save();render()}
+catch(err){alert("Não consegui ler o arquivo. Use um .csv exportado desta página ou o estoque.xlsx.")}};
+document.getElementById("reset").onclick=()=>{if(confirm("Voltar para os dados originais? As edições serão perdidas para todos.")){data=JSON.parse(JSON.stringify(SEED));zeroInk();fixDate(data);fixOrder(data);save();render()}};
+document.getElementById("csv").onclick=()=>{
+const l=[["Seção",...COLS].join(";")];
+data.forEach(s=>s.rows.forEach(r=>l.push([s.title,...keys.map(k=>'"'+String(r[k]).replace(/"/g,'""')+'"')].join(";"))));
+const a=document.createElement("a");a.href="data:text/csv;charset=utf-8,\uFEFF"+encodeURIComponent(l.join("\n"));a.download="estoque.csv";a.click()};
+const localSave=save;
+let dbDoc=null,canWrite=true,saveT=null,saving=false,pendingPush=false,deferred=null;
+const stat=document.createElement("span");stat.className="sum";stat.setAttribute("role","status");document.querySelector(".bar").appendChild(stat);
+const canon=o=>JSON.stringify(o,(k,v)=>v&&typeof v==="object"&&!Array.isArray(v)?Object.keys(v).sort().reduce((a,x)=>(a[x]=v[x],a),{}):v);
+const editing=()=>document.activeElement&&document.activeElement.isContentEditable;
+save=function(){localSave();if(dbDoc&&canWrite){clearTimeout(saveT);saveT=setTimeout(push,700)}};
+async function push(){saveT=null;if(saving){pendingPush=true;return}saving=true;stat.textContent="Salvando...";
+try{await dbDoc.set({sections:JSON.parse(JSON.stringify(data)),at:Date.now()});stat.textContent="Salvo para todos"}
+catch(e){if(e&&e.code=="invalid_argument"){canWrite=false;stat.textContent="Somente leitura"}else stat.textContent="Não foi possível salvar para todos"}
+saving=false;if(pendingPush){pendingPush=false;push()}}
+function applyRemote(snap){const d=snap.data();if(!d||!Array.isArray(d.sections))return;
+if(canon(d.sections)===canon(data))return;
+data=JSON.parse(JSON.stringify(d.sections));const ch=fixDate(data)|fixOrder(data);localSave();render();if(ch)save()}
+function onRemote(snap){
+if(snap.metadata.hasPendingWrites)return;
+if(!snap.exists){if(snap.metadata.fromCache)return;if(canWrite)push();else stat.textContent="Somente leitura";return}
+if(saveT||saving||editing()){deferred=snap;return}
+applyRemote(snap);stat.textContent=canWrite?"Salvo para todos":"Somente leitura"}
+document.addEventListener("focusout",()=>setTimeout(()=>{if(deferred&&!saveT&&!saving&&!editing()){const s=deferred;deferred=null;applyRemote(s)}},80));
+(async()=>{let db=null,user=null;try{db=await claude.use("db");user=await claude.use("user")}catch(e){}
+if(!db){stat.textContent="Salvo só neste navegador";return}
+dbDoc=db.doc("estoque/main");
+try{if(user&&(await user.can("data.write"))===false)canWrite=false}catch(e){}
+dbDoc.onSnapshot(onRemote,()=>{stat.textContent="Salvo só neste navegador"})})();
+render();
+</script>
+</body>
+</html>
